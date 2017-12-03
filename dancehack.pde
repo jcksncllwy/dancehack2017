@@ -1,8 +1,18 @@
 import processing.serial.*;
+import processing.sound.*;
+import ddf.minim.*;
+import ddf.minim.spi.*;
+import ddf.minim.ugens.*;
 import java.util.*;
 
-import processing.sound.*;
-SinOsc sine;
+// declare everything we need to play our file
+Minim minim;
+FilePlayer filePlayer;
+AudioOutput out;
+TickRate rateControl;
+
+
+SoundFile soundFile;
 
 Serial myPort;
 int val;
@@ -22,6 +32,11 @@ boolean recording = false;
 
 int particleSize = 20;
 
+int numOsc = 2;
+int baseFreq = 300;
+ArrayList<SinOsc> oscList1 = new ArrayList<SinOsc>();
+ArrayList<SinOsc> oscList2 = new ArrayList<SinOsc>();
+
 void setup(){
   ArrayList<String> ports = new ArrayList<String>(Arrays.asList(Serial.list()));
   if(ports.contains(portName)){
@@ -35,30 +50,79 @@ void setup(){
   lastVals = new float[numVals];
   noStroke();
   blendMode(ADD);
+  
+  
+  for(int i=0; i<numOsc; i++){
+    SinOsc osc = new SinOsc(this); 
+    osc.freq(baseFreq+(i*100));
+    //osc.play();
+    oscList1.add(osc);
+  }
+  
+  for(int i=0; i<numOsc; i++){
+    SinOsc osc = new SinOsc(this); 
+    osc.freq(200+(i*200));
+    //osc.play();
+    oscList2.add(osc);
+  }
+  
+  
+  
+  // create our Minim object for loading audio
+  minim = new Minim(this);
+        
+  // this creates a TickRate UGen with the default playback speed of 1.
+  // ie, it will sound as if the file is patched directly to the output
+  rateControl = new TickRate(1.f);
+  rateControl.setInterpolation( true );
+                                                  
+  // a FilePlayer reads from an AudioRecordingStream, which we 
+  // can easily get from Minim using loadFileStream
+  filePlayer = new FilePlayer( minim.loadFileStream("drumLoop.wav") );
+  // and then we'll tell the file player to loop indefinitely
+  filePlayer.loop();
+  
+  // get a line out from Minim. It's important that the file is the same audio format 
+  // as our output (i.e. same sample rate, number of channels, etc).
+  out = minim.getLineOut();
+  
+  // patch the file player to the output
+  filePlayer.patch(rateControl).patch(out);
+   
 }
 
 void draw(){
   t++;
-  
   clear();
   
   samplePort();
+  
+  float avg = valAvg();
+  float osc1 = map(sin(t*0.1), -1,1, 0,400*avg);
+  
+  rateControl.value.setLastValue(1+avg);
+  
+  for(int i=1; i< numOsc; i++){
+    SinOsc s = oscList1.get(i);
+    s.freq((baseFreq+i*avg*20));
+  }
+  
   pushMatrix();
   translate(screenX/2, screenY/2);
   
   for(int i=0; i<300*valAvg(); i++){
     pushMatrix();
-    rotate(i*t*0.0005*valAvg());
+    rotate(i*t*0.00005);
     int x = i;
     int y = 0;
-    fill(255,0,0);
+    fill(255);
     ellipse(x,y,particleSize,particleSize);
     rotate(1);
     fill(0,255,0);
-    ellipse(x,y,particleSize,particleSize);
+    //ellipse(x,y,particleSize,particleSize);
     rotate(1);
     fill(0,0,255);
-    ellipse(x,y,particleSize,particleSize);
+    //ellipse(x,y,particleSize,particleSize);
     popMatrix();
   }
   popMatrix();
